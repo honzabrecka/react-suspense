@@ -1,6 +1,12 @@
 import React from "react";
 import "./App.css";
 
+function isPendingResource(error) {
+  return (
+    error.pendingResource && typeof error.pendingResource.then === "function"
+  );
+}
+
 class Suspense extends React.Component {
   constructor(props) {
     super(props);
@@ -9,11 +15,7 @@ class Suspense extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    if (
-      !this.state.pending &&
-      error.pendingResource &&
-      typeof error.pendingResource.then === "function"
-    ) {
+    if (!this.state.pending && isPendingResource(error)) {
       this.setState({ pending: true });
       error.pendingResource.then(() => {
         if (this.mounted) this.setState({ pending: false });
@@ -34,7 +36,7 @@ class Suspense extends React.Component {
 }
 
 function useResource(resource, method = "read") {
-  const initialState = [undefined, true]
+  const initialState = [undefined, true];
   const [state, setState] = React.useState(initialState);
 
   const resolve = data => {
@@ -48,10 +50,7 @@ function useResource(resource, method = "read") {
       setState(initialState);
       resolve(resource[method]());
     } catch (error) {
-      if (
-        error.pendingResource &&
-        typeof error.pendingResource.then === "function"
-      )
+      if (isPendingResource(error))
         error.pendingResource.then(data => {
           if (valid) resolve(data);
         });
