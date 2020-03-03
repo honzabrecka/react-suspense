@@ -33,6 +33,39 @@ class Suspense extends React.Component {
   }
 }
 
+function useResource(resource, method = "read") {
+  const initialState = [undefined, true]
+  const [state, setState] = React.useState(initialState);
+
+  const resolve = data => {
+    setState([data, false]);
+  };
+
+  React.useEffect(() => {
+    let valid = true;
+
+    try {
+      setState(initialState);
+      resolve(resource[method]());
+    } catch (error) {
+      if (
+        error.pendingResource &&
+        typeof error.pendingResource.then === "function"
+      )
+        error.pendingResource.then(data => {
+          if (valid) resolve(data);
+        });
+      else throw error;
+    }
+
+    return () => {
+      valid = false;
+    };
+  }, [resource]);
+
+  return state;
+}
+
 function wrapPromise(promise) {
   let state = "pending";
   let error = null;
@@ -53,9 +86,9 @@ function wrapPromise(promise) {
    * thrown promise. Therefore promise needs to be wrapped with an Error.
    */
   const throwPromise = () => {
-    const p = new Error("pending resource");
-    p.pendingResource = promise;
-    throw p;
+    const error = new Error("pending resource");
+    error.pendingResource = promise;
+    throw error;
   };
 
   return {
@@ -74,6 +107,11 @@ const createResource = (data, t) => wrapPromise(delay(t).then(() => data));
 function X({ resource }) {
   const data = resource.read();
   return <div>{data}</div>;
+}
+
+function Y({ resource }) {
+  const [data, isLoading] = useResource(resource);
+  return isLoading ? "loading..." : <div>{data}</div>;
 }
 
 function App() {
@@ -97,6 +135,8 @@ function App() {
           <X resource={resource} />
         </Suspense>
       )}
+
+      {mounted && <Y resource={resource} />}
     </>
   );
 }
